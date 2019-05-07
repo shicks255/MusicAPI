@@ -26,7 +26,7 @@ public class ArtistSearchTest
     @Test
     public void artistSearchTest1()
     {
-        String artistName = "Pink Floyd";
+        String artistName = "Pop Unknown";
         ArtistQueryBuilder builder = new ArtistQueryBuilder.Builder().artistName(artistName).setLimit(1).build();
         ArtistSearcher searcher = new ArtistSearcher();
         List<Artist> artists = searcher.searchForArtists(builder);

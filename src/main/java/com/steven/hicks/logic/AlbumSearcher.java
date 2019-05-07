@@ -106,7 +106,7 @@ public class AlbumSearcher
         StringBuilder apiEndpoint = new StringBuilder("https://ws.audioscrobbler.com/2.0/?method=album.getInfo&artist=" + artistName.replace(" ", "%20").replace("&", "%26"));
 
         if (mbid.length() > 0)
-            apiEndpoint.append("&mbid=" + mbid);
+                                  apiEndpoint.append("&mbid=" + mbid);
         else
             apiEndpoint.append("&album=" + title.replace(" ", "%20"));
         apiEndpoint.append("&api_key=" + config.getString("lastFM_api_key") +"&format=json");

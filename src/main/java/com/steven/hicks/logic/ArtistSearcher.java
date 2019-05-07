@@ -15,6 +15,7 @@ import javax.net.ssl.HttpsURLConnection;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
 
@@ -87,6 +88,7 @@ public class ArtistSearcher
             System.out.println(e.getMessage());
         }
 
+        artistList.forEach(x -> addImagesFromFanArt(x, false));
         return artistList;
     }
 
@@ -182,11 +184,11 @@ public class ArtistSearcher
             System.out.println(e.getMessage());
         }
 
-        addImagesFromFanArt(fullArtist);
+        addImagesFromFanArt(fullArtist, false);
         return fullArtist;
     }
 
-    private void addImagesFromFanArt(Artist artist)
+    private void addImagesFromFanArt(Artist artist, boolean isSecondTry)
     {
         StringBuilder apiEndpoint2 = new StringBuilder("https://webservice.fanart.tv/v3/music/"+artist.getMbid()+"&?api_key=" + config.getString("fanArt_api_key") + "&format=json");
         boolean problemWithMbid = false;
@@ -211,8 +213,13 @@ public class ArtistSearcher
 
             List<Image> images = new ArrayList<>();
 
-            JsonNode thumbnails = m_objectMapper.readTree(data.toString()).get("artistthumb");
-            if (thumbnails != null)
+            JsonNode tree = m_objectMapper.readTree(data.toString());
+            JsonNode thumbnails = tree.get("artistthumb");
+            JsonNode backgrounds = tree.get("artistbackground");
+            JsonNode hdLogos = tree.get("hdmusiclogo");
+            JsonNode logos = tree.get("musiclogo");
+            JsonNode albumCovers = tree.get("albums");
+            if (thumbnails != null) //first try thumbnails
             {
                 int counter = 0;
                 while (thumbnails.get(counter) != null)
@@ -227,24 +234,69 @@ public class ArtistSearcher
                     counter++;
                 }
             }
+            else if (backgrounds != null) //then try backgrounds
+            {
+                int counter = 0;
+                while (backgrounds.get(counter) != null)
+                {
+                    String id = backgrounds.get(counter).get("id").asText();
+                    String urll = backgrounds.get(counter).get("url").asText();
+                    String likes = backgrounds.get(counter).get("likes").asText();
+
+                    Image image = new Image();
+                    image.setText(urll);
+                    images.add(image);
+                    counter++;
+                }
+            }
+            else if (hdLogos != null) //then try HD logos
+            {
+                int counter = 0;
+                while (hdLogos.get(counter) != null)
+                {
+                    String id = hdLogos.get(counter).get("id").asText();
+                    String urll = hdLogos.get(counter).get("url").asText();
+                    String likes = hdLogos.get(counter).get("likes").asText();
+
+                    Image image = new Image();
+                    image.setText(urll);
+                    images.add(image);
+                    counter++;
+                }
+            }
+            else if(logos != null) // then try logos
+            {
+                int counter = 0;
+                while (logos.get(counter) != null)
+                {
+                    String id = logos.get(counter).get("id").asText();
+                    String urll = logos.get(counter).get("url").asText();
+                    String likes = logos.get(counter).get("likes").asText();
+
+                    Image image = new Image();
+                    image.setText(urll);
+                    images.add(image);
+                    counter++;
+                }
+            }
+            else if (albumCovers != null) // last resort use album covers
+            {
+                Iterator<JsonNode> it = albumCovers.iterator();
+                while (it.hasNext())
+                {
+                    JsonNode node2 = it.next();
+
+                    String urll = node2.get("albumcover").findValue("url").asText();
+
+                    Image image = new Image();
+                    image.setText(urll);
+                    images.add(image);
+                }
+            }
 
             Image[] imageArray = new Image[images.size()];
             imageArray = images.toArray(imageArray);
             artist.setImage(imageArray);
-
-            if (node.containsKey("artistthumb"))
-            {
-//                Object images = Arrays.asList(node.get("artistthumb"));
-//                List<Map<String, Object>> images2 = new List<>(images);
-//                Image[] imageArray = new Image[images.size()];
-//                for (Object image : images)
-//                {
-//                    Image imageObj = new Image();
-//                    ArrayList props = ((ArrayList) image);
-//
-//                }
-            }
-
         }
         catch (IOException e)
         {
@@ -252,14 +304,14 @@ public class ArtistSearcher
             problemWithMbid = true;
         }
 
-        if (problemWithMbid)
+        if (problemWithMbid && !isSecondTry)
         {
             String newMbid = "";
             StringBuilder mbEndpoint = new StringBuilder("http://musicbrainz.org/ws/2/artist/?query=" + artist.getName().replace(" ", "%20") + "&fmt=json");
             try
             {
                 URL url = new URL(mbEndpoint.toString());
-                HttpsURLConnection connection = (HttpsURLConnection)url.openConnection();
+                HttpURLConnection connection = (HttpURLConnection)url.openConnection();
 
                 connection.setRequestProperty("User-Agent", "StevesReviews/1.0 stevesreviews.net shicks255@yahoo.com");
 
@@ -271,9 +323,8 @@ public class ArtistSearcher
                         data.append(input);
                 }
 
-                JsonNode node = m_objectMapper.readValue(data.toString(), new TypeReference<Map<String, Object>>(){});
-                System.out.println(node);
-                newMbid = node.get("id").asText();
+                JsonNode node = m_objectMapper.readTree(data.toString());
+                newMbid = node.get("artists").get(0).get("id").asText();
             }
             catch (IOException e)
             {
@@ -281,7 +332,7 @@ public class ArtistSearcher
             }
 
             artist.setMbid(newMbid);
-            addImagesFromFanArt(artist);
+            addImagesFromFanArt(artist, true);
         }
     }
 
