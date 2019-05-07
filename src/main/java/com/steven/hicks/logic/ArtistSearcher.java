@@ -209,7 +209,6 @@ public class ArtistSearcher
             }
 
             Map<String, Object> node = m_objectMapper.readValue(data.toString(), new TypeReference<Map<String, Object>>(){});
-            System.out.println(node);
 
             List<Image> images = new ArrayList<>();
 
@@ -285,12 +284,15 @@ public class ArtistSearcher
                 while (it.hasNext())
                 {
                     JsonNode node2 = it.next();
+                    JsonNode albumCover = node2.get("albumcover");
+                    if (albumCover != null)
+                    {
+                        String urll = albumCover.findValue("url").asText();
 
-                    String urll = node2.get("albumcover").findValue("url").asText();
-
-                    Image image = new Image();
-                    image.setText(urll);
-                    images.add(image);
+                        Image image = new Image();
+                        image.setText(urll);
+                        images.add(image);
+                    }
                 }
             }
 
@@ -300,13 +302,13 @@ public class ArtistSearcher
         }
         catch (IOException e)
         {
-            System.out.println(e.getMessage());
             problemWithMbid = true;
         }
 
         if (problemWithMbid && !isSecondTry)
         {
             String newMbid = "";
+            String newName = "";
             StringBuilder mbEndpoint = new StringBuilder("http://musicbrainz.org/ws/2/artist/?query=" + artist.getName().replace(" ", "%20") + "&fmt=json");
             try
             {
@@ -324,22 +326,21 @@ public class ArtistSearcher
                 }
 
                 JsonNode node = m_objectMapper.readTree(data.toString());
-                newMbid = node.get("artists").get(0).get("id").asText();
+                JsonNode artists = node.get("artists").get(0);
+
+                newMbid = artists.get("id").asText();
+                newName = artists.get("name").asText();
             }
             catch (IOException e)
             {
                 System.out.println(e.getMessage());
             }
 
-            artist.setMbid(newMbid);
-            addImagesFromFanArt(artist, true);
+            if (newName.equalsIgnoreCase(artist.getName()))
+            {
+                artist.setMbid(newMbid);
+                addImagesFromFanArt(artist, true);
+            }
         }
     }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class MockArtist
-    {
-
-    }
-
 }

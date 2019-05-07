@@ -94,7 +94,7 @@ public class AlbumSearcher
      *
      * Used to get details from an album, such as Tracks[] and Images[]
      * Can be used after getting all the albums from an <ArtistSearcher>ArtistSearcher</ArtistSearcher>
-     * If mbid is present, query sing that, else query using artistName and title
+     * If mbid is present, query using that, else query using artistName and title
      *
      * @param mbid - String MusicBrainz id.
      * @param title - String title
@@ -106,7 +106,7 @@ public class AlbumSearcher
         StringBuilder apiEndpoint = new StringBuilder("https://ws.audioscrobbler.com/2.0/?method=album.getInfo&artist=" + artistName.replace(" ", "%20").replace("&", "%26"));
 
         if (mbid.length() > 0)
-                                  apiEndpoint.append("&mbid=" + mbid);
+            apiEndpoint.append("&mbid=" + mbid);
         else
             apiEndpoint.append("&album=" + title.replace(" ", "%20"));
         apiEndpoint.append("&api_key=" + config.getString("lastFM_api_key") +"&format=json");
