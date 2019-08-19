@@ -1,6 +1,5 @@
 package com.steven.hicks.logic;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -88,7 +87,7 @@ public class ArtistSearcher
             System.out.println(e.getMessage());
         }
 
-        artistList.forEach(x -> addImagesFromFanArt(x, false));
+//        artistList.forEach(x -> addImagesFromFanArt(x, false));
         return artistList;
     }
 
@@ -133,6 +132,7 @@ public class ArtistSearcher
             JsonNode inner = node.get("topalbums").get("album");
             List<ArtistAlbums> artistAlbums = m_objectMapper.readValue(inner.toString(), new TypeReference<List<ArtistAlbums>>() {});
             artistAlbums.removeIf(x -> x.getImage().length == 0);
+            artistAlbums.removeIf(x -> x == null);
             albumList = artistAlbums;
         }
         catch (IOException e)

@@ -12,6 +12,12 @@ public class ArtistAlbums
 
     private Image[] image;
 
+    @Override
+    public String toString()
+    {
+        return m_name + " " + m_mbid + " " + m_playcount + " plays";
+    }
+
     public String getName()
     {
         return m_name;
