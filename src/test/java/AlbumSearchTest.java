@@ -1,6 +1,7 @@
 import com.steven.hicks.beans.album.Album;
 import com.steven.hicks.logic.AlbumQueryBuilder;
 import com.steven.hicks.logic.AlbumSearcher;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.time.LocalDate;
@@ -11,31 +12,45 @@ import static org.junit.Assert.assertTrue;
 
 public class AlbumSearchTest
 {
-    @Test
-    public void basicSearch()
-    {
-        AlbumQueryBuilder queryBuilder = new AlbumQueryBuilder.Builder().albumName("Integrity Blues").build();
-        AlbumSearcher searcher = new AlbumSearcher();
-        List<Album> albums = searcher.searchForAlbums(queryBuilder);
-        assertTrue("Found dark side of the moon records", albums != null && albums.size()>0);
+    private static String lastFmKey = "";
+    private static AlbumSearcher albumSearcher;
+
+    @BeforeClass
+    public static void setup() {
+        lastFmKey = System.getProperty("lastFmKey");
+        albumSearcher = new AlbumSearcher(lastFmKey);
     }
 
     @Test
-    public void searchForAlbumTest1()
+    public void shouldSearchForAlbums()
+    {
+        AlbumQueryBuilder queryBuilder = new AlbumQueryBuilder.Builder().albumName("Dark Side of the Moon").build();
+        AlbumSearcher searcher = new AlbumSearcher(lastFmKey);
+        List<Album> albums = searcher.searchForAlbums(queryBuilder);
+        assertTrue("Unable to find dark side of the moon", albums != null && albums.size()>0);
+    }
+
+    @Test
+    public void shouldReturnZeroAlbums() {
+        AlbumQueryBuilder queryBuilder = new AlbumQueryBuilder.Builder().albumName("safkljlelkjldklm").build();
+        AlbumSearcher searcher = new AlbumSearcher(lastFmKey);
+        List<Album> albums = searcher.searchForAlbums(queryBuilder);
+        assertTrue("No album should have been found for search safkljlelkjldklm", albums != null && albums.size() == 0);
+    }
+
+    @Test
+    public void shouldReturnFullAlbum()
     {
         String albumTitle = "disarm the descent";
-        AlbumQueryBuilder queryBuilder = new AlbumQueryBuilder.Builder().albumName(albumTitle).setLimit(1).setPage(1).build();
-        AlbumSearcher searcher = new AlbumSearcher();
+        AlbumQueryBuilder queryBuilder = new AlbumQueryBuilder.Builder().albumName(albumTitle).setLimit(10).setPage(1).build();
+        AlbumSearcher searcher = new AlbumSearcher(lastFmKey);
         List<Album> albums = searcher.searchForAlbums(queryBuilder);
-
         Album album = albums.get(0);
 
-        Album full = searcher.getFullAlbum(album.getMbid(), album.getName(), album.getArtist());
-        assertTrue("Wrong album artist found for " + albumTitle,full.getArtist().equalsIgnoreCase("Killswitch Engage"));
-        LocalDate year = searcher.getAlbumDate(full.getMbid());
+        Album fullAlbum = searcher.getFullAlbum(album.getMbid(), album.getName(), album.getArtist());
+        assertTrue("Wrong album artist found for " + albumTitle, fullAlbum.getArtist().equalsIgnoreCase("Killswitch Engage"));
+        LocalDate year = searcher.getAlbumDate(fullAlbum.getMbid());
         assertEquals("Wrong year found for " + albumTitle, year, LocalDate.of(2013, 03, 27));
-
-        System.out.println(full);
     }
 
     @Test
@@ -43,7 +58,7 @@ public class AlbumSearchTest
     {
         String albumTitle = "disarm the descent";
         AlbumQueryBuilder queryBuilder = new AlbumQueryBuilder.Builder().albumName("disarm the descent").setLimit(1).setPage(1).build();
-        AlbumSearcher searcher = new AlbumSearcher();
+        AlbumSearcher searcher = new AlbumSearcher(lastFmKey);
         List<Album> albums = searcher.searchForAlbums(queryBuilder);
 
         Album album = albums.get(0);

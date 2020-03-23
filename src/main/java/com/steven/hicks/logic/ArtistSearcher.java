@@ -4,8 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.steven.hicks.MissingConfigKeyException;
-import com.steven.hicks.NoConfigException;
 import com.steven.hicks.beans.ArtistAlbums;
 import com.steven.hicks.beans.artist.Artist;
 import com.steven.hicks.beans.artist.Image;
@@ -21,24 +19,40 @@ import java.util.*;
 public class ArtistSearcher
 {
     private static ObjectMapper m_objectMapper = new ObjectMapper();
-    private ResourceBundle config;
 
-    public ArtistSearcher()
-    {
+    private String lastFmKey;
+    private String fanArtKey;
+
+    public ArtistSearcher(String lastFmKey, String fanArtKey) {
+        this.lastFmKey = lastFmKey;
+        this.fanArtKey = fanArtKey;
+    }
+
+    @FunctionalInterface
+    private interface NodeConsumer {
+        void consumeNode(JsonNode jsonNode) throws IOException;
+    }
+
+    private void wrapAPICall(StringBuilder urlString, NodeConsumer nodeConsumer) {
         try {
-            config = ResourceBundle.getBundle("config");
-        } catch (Exception e) {
-            throw new NoConfigException("Invalid or missing config.properties file");
-        }
-        try {
-            config.getString("lastFM_api_key");
-        } catch (Exception E) {
-            throw new MissingConfigKeyException("Missing config property lastFM_api_key");
-        }
-        try {
-            config.getString("fanArt_api_key");
-        } catch (Exception E) {
-            throw new MissingConfigKeyException("Missing config property fanArt_api_key");
+            URL url = new URL(urlString.toString());
+            HttpsURLConnection connection = (HttpsURLConnection)url.openConnection();
+
+            connection.setRequestProperty("accept", "application/json");
+            connection.setRequestMethod("GET");
+
+            StringBuilder data = new StringBuilder();
+            String input;
+            try(BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8")))
+            {
+                while ((input = in.readLine()) != null)
+                    data.append(input);
+            }
+
+            JsonNode node = m_objectMapper.readTree(data.toString());
+            nodeConsumer.consumeNode(node);
+        } catch (IOException e) {
+            System.out.println(e);
         }
     }
 
@@ -57,35 +71,14 @@ public class ArtistSearcher
         apiEndpoint.append("&limit=" + query.getLimit());
         apiEndpoint.append("&page=" + query.getPage());
 
-        apiEndpoint.append("&api_key=" + config.getString("lastFM_api_key") +"&format=json");
+        apiEndpoint.append("&api_key=" + lastFmKey +"&format=json");
 
-        List<Artist> artistList = Collections.emptyList();
-        try
-        {
-            URL url = new URL(apiEndpoint.toString());
-            HttpsURLConnection connection = (HttpsURLConnection)url.openConnection();
-
-            connection.setRequestProperty("accept", "application/json");
-            connection.setRequestMethod("GET");
-
-            StringBuilder data = new StringBuilder();
-            String input;
-            try(BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8")))
-            {
-                while ((input = in.readLine()) != null)
-                    data.append(input);
-            }
-
-            JsonNode node = m_objectMapper.readTree(data.toString());
-            JsonNode inner = node.get("results").get("artistmatches").get("artist");
-
+        List<Artist> artistList = new ArrayList<>();
+        wrapAPICall(apiEndpoint, jsonNode -> {
+            JsonNode inner = jsonNode.get("results").get("artistmatches").get("artist");
             Artist[] artists = m_objectMapper.treeToValue(inner, Artist[].class);
-            artistList = Arrays.asList(artists);
-        }
-        catch (IOException e)
-        {
-            System.out.println(e.getMessage());
-        }
+            artistList.addAll(Arrays.asList(artists));
+        });
 
 //        artistList.forEach(x -> addImagesFromFanArt(x, false));
         return artistList;
@@ -108,37 +101,17 @@ public class ArtistSearcher
         apiEndpoint.append(query.getMbid());
         apiEndpoint.append("&limit=" + query.getLimit());
         apiEndpoint.append("&page=" + query.getPage());
-        apiEndpoint.append("&api_key=" + config.getString("lastFM_api_key") +"&format=json");
+        apiEndpoint.append("&api_key=" + lastFmKey +"&format=json");
 
-        List<ArtistAlbums> albumList = Collections.emptyList();
-        try
-        {
-            URL url = new URL(apiEndpoint.toString());
-            HttpsURLConnection connection = (HttpsURLConnection)url.openConnection();
-
-            connection.setRequestProperty("accept", "application/json");
-            connection.setRequestMethod("GET");
-
-            StringBuilder data = new StringBuilder();
-            String input;
-            try(BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8")))
-            {
-                while ((input = in.readLine()) != null)
-                    data.append(input);
-            }
-
+        List<ArtistAlbums> albumList = new ArrayList<>();
+        wrapAPICall(apiEndpoint, jsonNode -> {
             m_objectMapper.configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true);
-            JsonNode node = m_objectMapper.readTree(data.toString());
-            JsonNode inner = node.get("topalbums").get("album");
+            JsonNode inner = jsonNode.get("topalbums").get("album");
             List<ArtistAlbums> artistAlbums = m_objectMapper.readValue(inner.toString(), new TypeReference<List<ArtistAlbums>>() {});
             artistAlbums.removeIf(x -> x.getImage().length == 0);
             artistAlbums.removeIf(x -> x == null);
-            albumList = artistAlbums;
-        }
-        catch (IOException e)
-        {
-            System.out.println(e.getMessage());
-        }
+            albumList.addAll(artistAlbums);
+        });
 
         return albumList;
     }
@@ -147,50 +120,34 @@ public class ArtistSearcher
      * Given an MBID, returns an 'full' artist, which includes tags, and bio, in addition to everything the searchForArtists()
      * results gives you.
      *
-     * @param mbid
+     * @param artist
      * @return <Artist>Artist</Artist>
      */
-    public Artist getFullArtist(String mbid)
+    public Artist getFullArtist(Artist artist)
     {
         StringBuilder apiEndpoint = new StringBuilder("https://ws.audioscrobbler.com/2.0/?method=artist.getInfo&mbid=");
-        apiEndpoint.append(mbid);
-        apiEndpoint.append("&api_key=" + config.getString("lastFM_api_key") +"&format=json");
+        apiEndpoint.append(artist.getMbid());
+        apiEndpoint.append("&api_key=" + lastFmKey +"&format=json");
 
-        Artist fullArtist = null;
-        try
-        {
-            URL url = new URL(apiEndpoint.toString());
-            HttpsURLConnection connection = (HttpsURLConnection)url.openConnection();
+        Artist[] fullArtist = new Artist[1];
 
-            connection.setRequestProperty("accept", "application/json");
-            connection.setRequestMethod("GET");
-
-            StringBuilder data = new StringBuilder();
-            String input;
-            try(BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));)
-            {
-                while ((input = in.readLine()) != null)
-                    data.append(input);
-            }
-
+        wrapAPICall(apiEndpoint, jsonNode -> {
             m_objectMapper.configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true);
-            JsonNode node = m_objectMapper.readTree(data.toString());
-            JsonNode inner = node.get("artist");
-            Artist aa = m_objectMapper.treeToValue(inner, Artist.class);
-            fullArtist = aa;
-        }
-        catch (IOException e)
-        {
-            System.out.println(e.getMessage());
-        }
+            JsonNode inner = jsonNode.get("artist");
+            Artist aFullArtist = m_objectMapper.treeToValue(inner, Artist.class);
+            fullArtist[0] = aFullArtist;
+        });
 
-        addImagesFromFanArt(fullArtist, false);
-        return fullArtist;
+        Artist aFullArtist = fullArtist[0];
+
+        addImagesFromFanArt(aFullArtist, false);
+        aFullArtist.setListeners(artist.getListeners());
+        return aFullArtist;
     }
 
     private void addImagesFromFanArt(Artist artist, boolean isSecondTry)
     {
-        StringBuilder apiEndpoint2 = new StringBuilder("https://webservice.fanart.tv/v3/music/"+artist.getMbid()+"&?api_key=" + config.getString("fanArt_api_key") + "&format=json");
+        StringBuilder apiEndpoint2 = new StringBuilder("https://webservice.fanart.tv/v3/music/"+artist.getMbid()+"&?api_key=" + fanArtKey + "&format=json");
         boolean problemWithMbid = false;
         try
         {
@@ -305,6 +262,7 @@ public class ArtistSearcher
             problemWithMbid = true;
         }
 
+        //If we couldn't find the artist by first mbid, look up mbid from MusicBrainz and try it again
         if (problemWithMbid && !isSecondTry)
         {
             String newMbid = "";
