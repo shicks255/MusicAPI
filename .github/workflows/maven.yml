@@ -21,4 +21,4 @@ jobs:
       with:
         java-version: 1.8
     - name: Build with Maven
-      run: mvn test -DlastFmKey=${}{ secrets.LAST_FM_KEY } -DfanArtKey=${{ secrets.FAN_ART_KEY}}
+      run: mvn test -DlastFmKey=${{ secrets.LAST_FM_KEY }} -DfanArtKey=${{ secrets.FAN_ART_KEY }}
