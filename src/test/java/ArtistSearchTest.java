@@ -3,6 +3,7 @@ import com.steven.hicks.beans.artist.Artist;
 import com.steven.hicks.logic.ArtistQueryBuilder;
 import com.steven.hicks.logic.ArtistSearcher;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.List;

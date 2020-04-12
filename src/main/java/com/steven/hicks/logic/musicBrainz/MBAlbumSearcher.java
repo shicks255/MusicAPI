@@ -16,7 +16,7 @@ public class MBAlbumSearcher {
     private static String MUSIC_BRAINZ_ENDPOINT = "https://musicbrainz.org/ws/2/";
     private static String ALBUM_ART_ENDPOINT = "http://coverartarchive.org/release/";
 
-    public void searchForAlbumsByArtist(String artistMbid) {
+    public JsonNode searchForAlbumsByArtist(String artistMbid) {
         StringBuilder endPoint = new StringBuilder(MUSIC_BRAINZ_ENDPOINT + "release-group?query=arid:");
         endPoint.append(artistMbid);
         endPoint.append("%20AND%20primarytype:album%20AND%20status:official&fmt=json");
@@ -43,6 +43,9 @@ public class MBAlbumSearcher {
             for (Iterator<JsonNode> it = albums.iterator(); it.hasNext(); )
             {
                 JsonNode releaseGroup = it.next();
+                String releaseDate = getReleaseDate(releaseGroup.get("id").textValue());
+                ((ObjectNode)releaseGroup).put("releaseDate", releaseDate);
+
                 //iterate through releases until we get album info from albumArtArchive
                 JsonNode releases = releaseGroup.get("releases");
 
@@ -59,9 +62,42 @@ public class MBAlbumSearcher {
             }
 
             System.out.println(albums);
+            return albums;
         } catch (Exception e) {
 
         }
+
+        return null;
+    }
+
+    private String getReleaseDate(String releaseGroupId) {
+        String endPoint = MUSIC_BRAINZ_ENDPOINT + "release-group/" + releaseGroupId;
+
+        try
+        {
+            URL url = new URL(endPoint);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            connection.setRequestProperty("accept", "application/json");
+            connection.setRequestMethod("GET");
+
+            StringBuilder data = new StringBuilder();
+            String input;
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));)
+            {
+                while ((input = in.readLine()) != null)
+                    data.append(input);
+            }
+
+            JsonNode json = objectMapper.readTree(data.toString());
+            String releaseDate = json.get("first-release-date").asText();
+            return releaseDate;
+
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+
+        return "";
     }
 
     private JsonNode getAlbumImage(String releaseId) {
