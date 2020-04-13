@@ -24,15 +24,9 @@ public class MBArtistSearcher {
     private static String MUSIC_BRAINZ_ENDPOINT = "https://musicbrainz.org/ws/2/";
     private static String FAN_ART_ENDPOINT = "https://webservice.fanart.tv/v3/music/";
 
-    public JsonNode searchForArtist(String artistName) {
-
-        StringBuilder endpoint = new StringBuilder(MUSIC_BRAINZ_ENDPOINT + "artist?query=artist:");
-        endpoint.append(artistName);
-        endpoint.append("&fmt=json");
-
-        try
-        {
-            URL url = new URL(endpoint.toString());
+    private JsonNode process(StringBuilder endPoint, NodeProcessor processor) {
+        try {
+            URL url = new URL(endPoint.toString());
             HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
 
             connection.setRequestProperty("accept", "application/json");
@@ -47,17 +41,21 @@ public class MBArtistSearcher {
             }
 
             JsonNode node = m_objectMapper.readTree(data.toString());
-            JsonNode artists = node.get("artists");
+            return processor.processNode(node);
 
-            System.out.println(artists);
-
-            return artists;
-        } catch (Exception e)
-        {
-            e.printStackTrace();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
         }
 
         return null;
+    }
+
+    public JsonNode searchForArtist(String artistName) {
+        StringBuilder endpoint = new StringBuilder(MUSIC_BRAINZ_ENDPOINT + "artist?query=artist:");
+        endpoint.append(artistName);
+        endpoint.append("&fmt=json");
+
+        return process(endpoint, (node) -> node.get("artists"));
     }
 
     public JsonNode searchForArtistWithImages(String artistName, String fanArtKey) {
@@ -83,32 +81,7 @@ public class MBArtistSearcher {
         endpoint.append(mbid);
         endpoint.append("?fmt=json");
 
-        try
-        {
-            URL url = new URL(endpoint.toString());
-            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-
-            connection.setRequestProperty("accept", "application/json");
-            connection.setRequestMethod("GET");
-
-            StringBuilder data = new StringBuilder();
-            String input;
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8")))
-            {
-                while ((input = in.readLine()) != null)
-                    data.append(input);
-            }
-
-            JsonNode artist = m_objectMapper.readTree(data.toString());
-            System.out.println(artist);
-
-            return artist;
-        } catch (Exception e)
-        {
-            e.printStackTrace();
-        }
-
-        return null;
+        return process(endpoint, (node) -> node);
     }
 
     public JsonNode getArtistWithImages(String mbid, String fanArtKey) {
@@ -116,7 +89,6 @@ public class MBArtistSearcher {
         JsonNode images = getArtistImages(mbid, fanArtKey);
         ((ObjectNode)artist).putArray("images").add(images);
 
-        System.out.println(artist);
         return artist;
     }
 
